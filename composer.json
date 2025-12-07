@@ -1,0 +1,7 @@
+{
+  "name": "sabjab/backend",
+  "description": "SabJab API backend",
+  "require": {
+    "php": ">=8.1"
+  }
+}
