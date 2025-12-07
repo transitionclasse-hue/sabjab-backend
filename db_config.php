@@ -1,22 +1,12 @@
 <?php
-// Load environment variables (Render automatically provides them)
-$DB_HOST = getenv("DB_HOST");
-$DB_USER = getenv("DB_USER");
-$DB_PASS = getenv("DB_PASS");
-$DB_NAME = getenv("DB_NAME");
+$host = "srv2124.hstgr.io";  // Hostinger MySQL Host
+$user = "u183862199_sj";     // Your DB Username
+$pass = "Na2b4o7.10h20";  // Your DB Password
+$dbname = "u183862199_sj";   // Your Database Name
 
-// Create MySQL connection
-$conn = @new mysqli($DB_HOST, $DB_USER, $DB_PASS, $DB_NAME);
+$conn = new mysqli($host, $user, $pass, $dbname);
 
-// Check connection
-if ($conn->connect_errno) {
-    http_response_code(500);
-    die(json_encode([
-        "success" => false,
-        "message" => "Database Connection Failed",
-        "error" => $conn->connect_error
-    ]));
+if ($conn->connect_error) {
+    die("Connection failed: " . $conn->connect_error);
 }
-
-$conn->set_charset("utf8mb4");
 ?>
