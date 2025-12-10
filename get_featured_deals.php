@@ -2,8 +2,7 @@
 // Set response header to JSON
 header('Content-Type: application/json');
 
-// --- 1. INCLUDE DATABASE CONFIG ---
-// Assumes db_config.php sets up the PDO connection ($pdo)
+// --- 1. INCLUDE DATABASE CONFIG (Creates $conn - MySQLi object) ---
 require_once 'db_config.php';
 
 $response = [
@@ -12,8 +11,8 @@ $response = [
     'miniDeals' => [],
 ];
 
-// CRITICAL CHECK: Ensure $pdo object exists after requiring the config file
-if (!isset($pdo) || is_null($pdo)) {
+// CRITICAL CHECK: Ensure $conn object exists and is connected
+if (!isset($conn) || $conn->connect_error) {
     $response['status'] = 'error';
     $response['message'] = 'Database connection failed. Please check db_config.php.';
     echo json_encode($response);
@@ -21,8 +20,7 @@ if (!isset($pdo) || is_null($pdo)) {
 }
 
 try {
-    // --- 2. FETCH THE BIG DEAL (ONE PRODUCT) ---
-    // Assumes 'products' table has columns: id, name, regular_price, sale_price, short_description, image_url, is_big_deal
+    // --- 2. FETCH THE BIG DEAL (MySQLi Query) ---
     $sql_big = "
         SELECT
             p.id,
@@ -36,22 +34,18 @@ try {
         ORDER BY p.sale_price ASC
         LIMIT 1
     ";
-    
-    // NOTE: Removed `p.status = 'publish'` as that column is not in your SQL dump. 
-    // Using `p.stock_status = 'instock'` based on your product data.
-    
-    $stmt_big = $pdo->query($sql_big);
-    $bigDeal = $stmt_big->fetch(PDO::FETCH_ASSOC);
+
+    $result_big = mysqli_query($conn, $sql_big);
+    $bigDeal = mysqli_fetch_assoc($result_big);
 
     if ($bigDeal) {
-        // Ensure prices are converted to float/numeric
         $bigDeal['oldPrice'] = (float)$bigDeal['oldPrice'];
         $bigDeal['price'] = (float)$bigDeal['price'];
         $response['bigDeal'] = $bigDeal;
     }
 
 
-    // --- 3. FETCH MINI DEALS (4 PRODUCTS/CATEGORIES) ---
+    // --- 3. FETCH MINI DEALS (MySQLi Query) ---
     $sql_mini = "
         SELECT
             p.id,
@@ -63,26 +57,32 @@ try {
         WHERE p.is_mini_deal = 1 AND p.stock_status = 'instock'
         LIMIT 4
     ";
-    
-    // NOTE: Removed `p.status = 'publish'` and replaced with `p.stock_status = 'instock'`
 
-    $stmt_mini = $pdo->query($sql_mini);
-    $response['miniDeals'] = $stmt_mini->fetchAll(PDO::FETCH_ASSOC);
+    $result_mini = mysqli_query($conn, $sql_mini);
+    $miniDeals = [];
+    while ($row = mysqli_fetch_assoc($result_mini)) {
+        $miniDeals[] = $row;
+    }
+    $response['miniDeals'] = $miniDeals;
 
-    // Fallback/Simulated Data if no real deals are found (Optional)
+
+    // --- 4. Fallback/Simulated Data (Optional) ---
     if (empty($response['bigDeal']) && empty($response['miniDeals'])) {
          $response['bigDeal'] = [
              "id" => "P999", "title" => "Default Deal Title", "oldPrice" => 500.0, "price" => 250.0,
              "subtitle" => "Placeholder Deal", "image" => "https://via.placeholder.com/150",
          ];
-         // You can add placeholder mini deals here if you want them to show even if the DB is empty
     }
 
-} catch (PDOException $e) {
-    // Return an error response
+} catch (Exception $e) {
     $response['status'] = 'error';
-    $response['message'] = 'Database query failed in try block. Details hidden.';
-    // For debugging, you could show $e->getMessage(), but hide it for production.
+    $response['message'] = 'Database query failed in try block.';
+    error_log("Query Exception: " . $e->getMessage());
+}
+
+// Close the connection
+if (isset($conn)) {
+    mysqli_close($conn);
 }
 
 echo json_encode($response);
