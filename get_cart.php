@@ -22,8 +22,7 @@ SELECT
     c.product_id,
     c.qty,
     p.name,
-    p.price,
-    p.image
+    p.price
 FROM cart c
 JOIN products p ON p.id = c.product_id
 WHERE c.user_id = ?
@@ -37,6 +36,8 @@ $result = mysqli_stmt_get_result($stmt);
 
 $items = [];
 while ($row = mysqli_fetch_assoc($result)) {
+    // Add placeholder image
+    $row["image"] = "https://via.placeholder.com/150";
     $items[] = $row;
 }
 
