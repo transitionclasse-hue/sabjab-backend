@@ -10,36 +10,24 @@ if (!$user_id) {
     exit;
 }
 
-// Join with your products table (adjust table name if needed)
-$sql = "
-SELECT 
-  c.id as cart_id,
-  c.product_id,
-  c.qty,
-  p.name,
-  p.price,
-  p.image
-FROM cart c
-JOIN products p ON p.id = c.product_id
-WHERE c.user_id = ?
-";
-
-$stmt = $conn->prepare($sql);
+// Fetch only cart rows (NO JOIN)
+$stmt = $conn->prepare("SELECT * FROM cart WHERE user_id = ?");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $res = $stmt->get_result();
 
 $items = [];
-$total = 0;
 
 while ($row = $res->fetch_assoc()) {
-    $row['subtotal'] = $row['price'] * $row['qty'];
-    $total += $row['subtotal'];
+    // TEMP fake product data (so app UI works)
+    $row["name"] = "Product #" . $row["product_id"];
+    $row["price"] = 100;
+    $row["image"] = "https://via.placeholder.com/100";
+    $row["subtotal"] = $row["price"] * $row["qty"];
     $items[] = $row;
 }
 
 echo json_encode([
   "success" => true,
-  "items" => $items,
-  "total" => $total
+  "items" => $items
 ]);
