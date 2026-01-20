@@ -1,4 +1,7 @@
 <?php
+error_reporting(0); // 🔥 HIDE ALL WARNINGS
+ini_set("display_errors", 0);
+
 header("Content-Type: application/json");
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: POST");
@@ -6,7 +9,11 @@ header("Access-Control-Allow-Headers: Content-Type");
 
 require_once "db_config.php";
 
-$input = json_decode(file_get_contents("php://input"), true);
+// Ensure no accidental output
+ob_clean();
+
+$raw = file_get_contents("php://input");
+$input = json_decode($raw, true);
 
 if (!isset($input["phone"])) {
     echo json_encode(["success" => false, "message" => "Missing phone"]);
@@ -27,7 +34,6 @@ mysqli_stmt_execute($stmt);
 $result = mysqli_stmt_get_result($stmt);
 
 if ($row = mysqli_fetch_assoc($result)) {
-    // ✅ User exists → return it
     echo json_encode([
         "success" => true,
         "user" => $row
