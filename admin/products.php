@@ -4,10 +4,9 @@ if (!isset($_SESSION["admin"])) {
     header("Location: login.php");
     exit;
 }
-
 include "../db_config.php";
 
-$res = $conn->query("SELECT * FROM products ORDER BY id DESC");
+$res = $conn->query("SELECT id, name, price, stock_status, stock_quantity, image_url FROM products ORDER BY id DESC");
 ?>
 <!DOCTYPE html>
 <html>
@@ -51,7 +50,7 @@ $res = $conn->query("SELECT * FROM products ORDER BY id DESC");
 </table>
 
 <br>
-<a href="dashboard.php">⬅ Back to Dashboard</a>
+<a href="dashboard.php">⬅ Back</a>
 
 </body>
 </html>
