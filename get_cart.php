@@ -1,23 +1,17 @@
 <?php
 header("Content-Type: application/json");
 header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: GET, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type");
-
-// Handle CORS preflight
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    exit;
-}
 
 require_once "db_config.php";
+
+mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
 if (!isset($_GET["user_id"])) {
     echo json_encode(["success" => false, "items" => [], "message" => "Missing user_id"]);
     exit;
 }
 
-$user_id = intval($_GET["user_id"]);
+$user_id = (int)$_GET["user_id"];
 
 if ($user_id <= 0) {
     echo json_encode(["success" => false, "items" => [], "message" => "Invalid user"]);
@@ -27,7 +21,7 @@ if ($user_id <= 0) {
 $sql = "
 SELECT 
     c.id AS cart_id,
-    c.product_id AS id,
+    c.product_id,
     c.qty,
     p.name,
     p.price,
@@ -48,11 +42,7 @@ while ($row = mysqli_fetch_assoc($result)) {
     $items[] = $row;
 }
 
-mysqli_stmt_close($stmt);
-
 echo json_encode([
     "success" => true,
     "items" => $items
 ]);
-
-mysqli_close($conn);
