@@ -4,7 +4,7 @@ header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: POST, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type");
 
-// Handle CORS preflight
+// Handle preflight
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit;
@@ -16,7 +16,7 @@ mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
 $input = json_decode(file_get_contents("php://input"), true);
 
-// If frontend sends only user_id => CLEAR FULL CART
+// ---------- CLEAR FULL CART ----------
 if (isset($input["user_id"]) && !isset($input["product_id"])) {
 
     $user_id = (int)$input["user_id"];
@@ -34,7 +34,7 @@ if (isset($input["user_id"]) && !isset($input["product_id"])) {
     exit;
 }
 
-// Normal add/update/remove logic
+// ---------- NORMAL ADD / UPDATE / REMOVE ----------
 if (
     !isset($input["user_id"]) ||
     !isset($input["product_id"]) ||
@@ -63,7 +63,7 @@ if ($qty <= 0) {
     exit;
 }
 
-// Insert or update item
+// Insert or update
 $stmt = mysqli_prepare($conn, "
     INSERT INTO cart (user_id, product_id, qty)
     VALUES (?, ?, ?)
