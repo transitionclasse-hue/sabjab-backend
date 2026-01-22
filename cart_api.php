@@ -16,7 +16,30 @@ mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
 $input = json_decode(file_get_contents("php://input"), true);
 
-if (!isset($input["user_id"]) || !isset($input["product_id"]) || !isset($input["qty"])) {
+// If frontend sends only user_id => CLEAR FULL CART
+if (isset($input["user_id"]) && !isset($input["product_id"])) {
+
+    $user_id = (int)$input["user_id"];
+
+    if ($user_id <= 0) {
+        echo json_encode(["success" => false, "message" => "Invalid user"]);
+        exit;
+    }
+
+    $stmt = mysqli_prepare($conn, "DELETE FROM cart WHERE user_id = ?");
+    mysqli_stmt_bind_param($stmt, "i", $user_id);
+    mysqli_stmt_execute($stmt);
+
+    echo json_encode(["success" => true, "message" => "Cart cleared"]);
+    exit;
+}
+
+// Normal add/update/remove logic
+if (
+    !isset($input["user_id"]) ||
+    !isset($input["product_id"]) ||
+    !isset($input["qty"])
+) {
     echo json_encode(["success" => false, "message" => "Missing parameters"]);
     exit;
 }
@@ -30,6 +53,7 @@ if ($user_id <= 0 || $product_id <= 0) {
     exit;
 }
 
+// Remove item
 if ($qty <= 0) {
     $stmt = mysqli_prepare($conn, "DELETE FROM cart WHERE user_id = ? AND product_id = ?");
     mysqli_stmt_bind_param($stmt, "ii", $user_id, $product_id);
@@ -39,7 +63,7 @@ if ($qty <= 0) {
     exit;
 }
 
-// Insert or Update
+// Insert or update item
 $stmt = mysqli_prepare($conn, "
     INSERT INTO cart (user_id, product_id, qty)
     VALUES (?, ?, ?)
