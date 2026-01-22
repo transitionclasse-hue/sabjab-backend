@@ -15,9 +15,6 @@ require_once "db_config.php";
 // Throw MySQL errors as exceptions
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
-// TEMP: until session system is ready
-$user_id = 1;
-
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
     echo json_encode(["status" => "error", "message" => "Method not allowed"]);
@@ -31,6 +28,20 @@ if (!$data) {
     exit;
 }
 
+// ✅ SESSION-BOUND: user_id must come from frontend
+if (!isset($data['user_id'])) {
+    echo json_encode(["status" => "error", "message" => "User not logged in"]);
+    exit;
+}
+
+$user_id = (int)$data['user_id'];
+
+if ($user_id <= 0) {
+    echo json_encode(["status" => "error", "message" => "Invalid user"]);
+    exit;
+}
+
+// Validate order fields
 if (
     !isset($data['address_id']) ||
     !isset($data['final_amount']) ||
@@ -97,7 +108,7 @@ try {
         mysqli_stmt_execute($stmt_item);
     }
 
-    // 3. Clear cart
+    // 3. Clear ONLY THIS USER's cart
     $stmt_clear = mysqli_prepare($conn, "DELETE FROM cart WHERE user_id = ?");
     mysqli_stmt_bind_param($stmt_clear, "i", $user_id);
     mysqli_stmt_execute($stmt_clear);
