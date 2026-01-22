@@ -12,8 +12,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 require_once "db_config.php";
 
+// Throw MySQL errors as exceptions
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
+// TEMP: until session system is ready
 $user_id = 1;
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -30,9 +32,9 @@ if (!$data) {
 }
 
 if (
-    !isset($data['address_id']) || 
-    !isset($data['final_amount']) || 
-    empty($data['payment_method']) || 
+    !isset($data['address_id']) ||
+    !isset($data['final_amount']) ||
+    empty($data['payment_method']) ||
     empty($data['cart_items'])
 ) {
     echo json_encode(["status" => "error", "message" => "Missing order details"]);
@@ -43,7 +45,7 @@ $address_id = (int)$data['address_id'];
 $order_total = (float)$data['order_total'];
 $discount_amount = (float)$data['discount_amount'];
 $final_amount = (float)$data['final_amount'];
-$payment_method = $data['payment_method'];
+$payment_method = (string)$data['payment_method'];
 
 mysqli_begin_transaction($conn);
 
@@ -54,7 +56,9 @@ try {
         (user_id, address_id, order_total, discount_amount, final_amount, payment_method, order_status) 
         VALUES (?, ?, ?, ?, ?, ?, 'Processing')
     ");
-    mysqli_stmt_bind_param($stmt, "iiddds",
+    mysqli_stmt_bind_param(
+        $stmt,
+        "iiddds",
         $user_id,
         $address_id,
         $order_total,
@@ -74,13 +78,22 @@ try {
     ");
 
     foreach ($data['cart_items'] as $item) {
-        mysqli_stmt_bind_param($stmt_item, "iisdi",
+
+        $product_id = (int)$item['id'];
+        $product_name = (string)$item['name'];
+        $price_at_purchase = (float)$item['price'];
+        $qty = (int)$item['qty'];
+
+        mysqli_stmt_bind_param(
+            $stmt_item,
+            "iisdi",
             $order_id,
-            (int)$item['id'],
-            $item['name'],
-            (float)$item['price'],
-            (int)$item['qty']
+            $product_id,
+            $product_name,
+            $price_at_purchase,
+            $qty
         );
+
         mysqli_stmt_execute($stmt_item);
     }
 
@@ -93,6 +106,7 @@ try {
 
     echo json_encode([
         "status" => "success",
+        "message" => "Order placed successfully",
         "order_id" => $order_id
     ]);
 
