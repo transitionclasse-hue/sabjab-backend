@@ -1,7 +1,13 @@
 <?php
+session_start();
+if (!isset($_SESSION["admin"])) {
+  header("Location: login.php");
+  exit;
+}
+
 require "../db_config.php";
 
-// ADD
+// ADD VIDEO
 if (isset($_POST["add"])) {
   $title = $_POST["title"];
   $video_url = $_POST["video_url"];
@@ -26,7 +32,7 @@ if (isset($_GET["delete"])) {
 $result = $conn->query("SELECT * FROM home_minivideos ORDER BY id DESC");
 ?>
 
-<h2>Mini Video Admin</h2>
+<h2>Mini Video Manager</h2>
 
 <form method="post">
   <input name="title" placeholder="Title" required>
@@ -48,8 +54,8 @@ $result = $conn->query("SELECT * FROM home_minivideos ORDER BY id DESC");
 <?php while($row = $result->fetch_assoc()): ?>
 <tr>
   <td><?= $row["id"] ?></td>
-  <td><?= $row["title"] ?></td>
-  <td><?= $row["video_url"] ?></td>
+  <td><?= htmlspecialchars($row["title"]) ?></td>
+  <td style="max-width:300px;word-break:break-all;"><?= htmlspecialchars($row["video_url"]) ?></td>
   <td><?= $row["is_active"] ? "ACTIVE" : "OFF" ?></td>
   <td>
     <a href="?toggle=<?= $row["id"] ?>">Toggle</a> |
@@ -58,3 +64,6 @@ $result = $conn->query("SELECT * FROM home_minivideos ORDER BY id DESC");
 </tr>
 <?php endwhile; ?>
 </table>
+
+<br>
+<a href="dashboard.php">← Back to Dashboard</a>
