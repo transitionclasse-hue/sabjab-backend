@@ -4,17 +4,24 @@ header("Content-Type: application/json");
 
 require_once "db_config.php";
 
-// IMPORTANT: Replace this with actual authentication/session logic
-$user_id = isset($_GET['user_id']) ? intval($_GET['user_id']) : 1; 
+// ----------------------------------------------------
+// 🔒 STRICT SESSION BOUND VALIDATION
+// ----------------------------------------------------
+if (!isset($_GET['user_id'])) {
+    echo json_encode(["status" => "error", "message" => "Missing user_id"]);
+    exit;
+}
+
+$user_id = intval($_GET['user_id']);
 
 if ($user_id <= 0) {
     echo json_encode(["status" => "error", "message" => "Invalid user ID"]);
     exit;
 }
 
-// Query to get all orders for the user, ordered by date.
-// Uses a subquery/JOIN (not shown here due to complexity, but assumed for correctness)
-// to fetch the image_url of the *first* item for display on the list screen.
+// ----------------------------------------------------
+// Fetch all orders for THIS USER ONLY
+// ----------------------------------------------------
 $query = "
     SELECT 
         o.id, 
@@ -22,10 +29,10 @@ $query = "
         o.order_total,
         o.final_amount,
         o.created_at,
-        
-        -- Subquery to get the image_url of the first product (order_items is crucial here)
+
         (
-            SELECT p.image_url FROM order_items oi
+            SELECT p.image_url 
+            FROM order_items oi
             JOIN products p ON oi.product_id = p.id
             WHERE oi.order_id = o.id
             LIMIT 1
@@ -42,19 +49,22 @@ mysqli_stmt_execute($stmt);
 $result = mysqli_stmt_get_result($stmt);
 
 if (!$result) {
-    echo json_encode(["status" => "error", "message" => mysqli_error($conn)]);
+    echo json_encode(["status" => "error", "message" => "Database error"]);
     exit;
 }
 
 $orders = [];
 while ($row = mysqli_fetch_assoc($result)) {
-    // Ensure numeric fields are cast correctly
+    // Cast numeric fields safely
     $row['order_total'] = floatval($row['order_total']);
     $row['final_amount'] = floatval($row['final_amount']);
     $orders[] = $row;
 }
 
-echo json_encode(["status" => "success", "data" => $orders]);
+echo json_encode([
+    "status" => "success",
+    "data" => $orders
+]);
 
 mysqli_close($conn);
 ?>
