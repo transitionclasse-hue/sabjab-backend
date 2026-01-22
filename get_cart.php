@@ -1,6 +1,14 @@
 <?php
 header("Content-Type: application/json");
 header("Access-Control-Allow-Origin: *");
+header("Access-Control-Allow-Methods: GET, OPTIONS");
+header("Access-Control-Allow-Headers: Content-Type");
+
+// Handle CORS preflight
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit;
+}
 
 require_once "db_config.php";
 
@@ -19,7 +27,7 @@ if ($user_id <= 0) {
 $sql = "
 SELECT 
     c.id AS cart_id,
-    c.product_id,
+    c.product_id AS id,
     c.qty,
     p.name,
     p.price,
