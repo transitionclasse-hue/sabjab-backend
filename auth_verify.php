@@ -1,8 +1,4 @@
 <?php
-// =====================================================
-// SabJab9 — auth_verify.php (PRODUCTION SAFE)
-// =====================================================
-
 header("Content-Type: application/json");
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: POST");
@@ -15,12 +11,12 @@ session_start();
 
 require_once __DIR__ . "/db_config.php";
 
-// Read input
 $raw = file_get_contents("php://input");
 $input = json_decode($raw, true);
 
 if (!isset($input["phone"])) {
     echo json_encode(["success" => false, "message" => "Missing phone"]);
+    mysqli_close($conn); // ALWAYS CLOSE before exit
     exit;
 }
 
@@ -28,6 +24,7 @@ $phone = trim($input["phone"]);
 
 if (strlen($phone) != 10) {
     echo json_encode(["success" => false, "message" => "Invalid phone number"]);
+    mysqli_close($conn); // ALWAYS CLOSE before exit
     exit;
 }
 
@@ -35,6 +32,7 @@ if (strlen($phone) != 10) {
 $stmt = mysqli_prepare($conn, "SELECT id, phone, name FROM users WHERE phone = ?");
 if (!$stmt) {
     echo json_encode(["success" => false, "message" => "Query prepare failed"]);
+    mysqli_close($conn);
     exit;
 }
 
@@ -45,30 +43,34 @@ $result = mysqli_stmt_get_result($stmt);
 if ($row = mysqli_fetch_assoc($result)) {
     $_SESSION["user_id"] = $row["id"];
     echo json_encode(["success" => true, "user" => $row]);
+    
+    // Clean up before exiting
+    mysqli_stmt_close($stmt);
+    mysqli_close($conn); 
     exit;
 }
-
 mysqli_stmt_close($stmt);
 
-// 2. Create user
+// 2. Create user if not found
 $name = "User " . substr($phone, -4);
-
-$stmt = mysqli_prepare($conn, "INSERT INTO users (phone, name) VALUES (?, ?)");
-if (!$stmt) {
+$stmt2 = mysqli_prepare($conn, "INSERT INTO users (phone, name) VALUES (?, ?)");
+if (!$stmt2) {
     echo json_encode(["success" => false, "message" => "Insert prepare failed"]);
+    mysqli_close($conn);
     exit;
 }
 
-mysqli_stmt_bind_param($stmt, "ss", $phone, $name);
-$ok = mysqli_stmt_execute($stmt);
+mysqli_stmt_bind_param($stmt2, "ss", $phone, $name);
+$ok = mysqli_stmt_execute($stmt2);
 
 if (!$ok) {
     echo json_encode(["success" => false, "message" => "Insert failed"]);
+    mysqli_stmt_close($stmt2);
+    mysqli_close($conn);
     exit;
 }
 
 $newUserId = mysqli_insert_id($conn);
-
 $_SESSION["user_id"] = $newUserId;
 
 echo json_encode([
@@ -79,3 +81,8 @@ echo json_encode([
         "name" => $name
     ]
 ]);
+
+// Final cleanup
+mysqli_stmt_close($stmt2);
+mysqli_close($conn);
+?>
