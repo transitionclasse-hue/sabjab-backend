@@ -1,35 +1,31 @@
 <?php
 // ==================================================
-// db_config.php — SabJab9 (Connection-Safe Version)
+// db_config.php — SabJab9 (FIXED)
 // ==================================================
 
-// Turn off mysqli exceptions (VERY IMPORTANT)
 mysqli_report(MYSQLI_REPORT_OFF);
 
-// Fetch credentials from environment
 $host = getenv('DB_HOST');
 $user = getenv('DB_USER');
 $pass = getenv('DB_PASS');
 $dbname = getenv('DB_NAME');
 
-// Fallback to Hostinger (if env not set)
+// Fallback to Hostinger
 if (!$host) {
-    // Use PERSISTENT connection (p:)
-    $host = "p:srv2124.hstgr.io";
+    // REMOVED "p:" - This was the leak!
+    $host = "srv2124.hstgr.io"; 
     $user = "u183862199_sj";
-    $pass = "YOUR_REAL_PASSWORD_HERE";
+    $pass = "YOUR_REAL_PASSWORD_HERE"; // Ensure this is correct
     $dbname = "u183862199_sj";
-} else {
-    // Also persistent for Render
-    $host = "p:" . $host;
 }
 
-// Create connection
+// Create standard connection (No "p:")
 $conn = @mysqli_connect($host, $user, $pass, $dbname);
 
-// If failed, return JSON instead of crashing
 if (!$conn) {
     header("Content-Type: application/json");
+    // This is the error you are seeing. 
+    // Once the p: connections clear (after 1 hour), this will stop.
     echo json_encode([
         "success" => false,
         "message" => "DB connection failed: " . mysqli_connect_error()
@@ -37,5 +33,4 @@ if (!$conn) {
     exit;
 }
 
-// Set charset
 mysqli_set_charset($conn, "utf8mb4");
