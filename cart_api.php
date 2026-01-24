@@ -40,22 +40,16 @@ try {
 }
 
 // ------------------ CLEAR FULL CART ------------------
-if (!isset($input["product_id"])) {
-    try {
-        $stmt = $pdo->prepare("DELETE FROM cart WHERE user_id = ?");
-        $stmt->execute([$user_id]);
-
-        echo json_encode(["success" => true, "message" => "Cart cleared"]);
-        exit;
-    } catch (Exception $e) {
-        echo json_encode(["success" => false, "message" => "Failed to clear cart"]);
-        exit;
-    }
+if (isset($input["clear"]) && $input["clear"] === true) {
+    $stmt = $pdo->prepare("DELETE FROM cart WHERE user_id = ?");
+    $stmt->execute([$user_id]);
+    echo json_encode(["success" => true, "message" => "Cart cleared"]);
+    exit;
 }
 
-// ------------------ VALIDATE PARAMETERS ------------------
+// ------------------ VALIDATE INPUT ------------------
 if (!isset($input["product_id"]) || !isset($input["qty"])) {
-    echo json_encode(["success" => false, "message" => "Missing parameters"]);
+    echo json_encode(["success" => false, "message" => "Missing product_id or qty"]);
     exit;
 }
 
@@ -69,31 +63,19 @@ if ($product_id <= 0) {
 
 // ------------------ REMOVE ITEM ------------------
 if ($qty <= 0) {
-    try {
-        $stmt = $pdo->prepare("DELETE FROM cart WHERE user_id = ? AND product_id = ?");
-        $stmt->execute([$user_id, $product_id]);
-
-        echo json_encode(["success" => true, "message" => "Item removed"]);
-        exit;
-    } catch (Exception $e) {
-        echo json_encode(["success" => false, "message" => "Failed to remove item"]);
-        exit;
-    }
+    $stmt = $pdo->prepare("DELETE FROM cart WHERE user_id = ? AND product_id = ?");
+    $stmt->execute([$user_id, $product_id]);
+    echo json_encode(["success" => true, "message" => "Item removed"]);
+    exit;
 }
 
 // ------------------ INSERT OR UPDATE ------------------
-try {
-    $stmt = $pdo->prepare("
-        INSERT INTO cart (user_id, product_id, qty)
-        VALUES (?, ?, ?)
-        ON CONFLICT (user_id, product_id)
-        DO UPDATE SET qty = EXCLUDED.qty
-    ");
-    $stmt->execute([$user_id, $product_id, $qty]);
+$stmt = $pdo->prepare("
+    INSERT INTO cart (user_id, product_id, qty)
+    VALUES (?, ?, ?)
+    ON CONFLICT (user_id, product_id)
+    DO UPDATE SET qty = EXCLUDED.qty
+");
+$stmt->execute([$user_id, $product_id, $qty]);
 
-    echo json_encode(["success" => true, "message" => "Cart updated"]);
-    exit;
-} catch (Exception $e) {
-    echo json_encode(["success" => false, "message" => "Failed to update cart"]);
-    exit;
-}
+echo json_encode(["success" => true, "message" => "Cart updated"]);
