@@ -16,38 +16,27 @@ $input = json_decode(file_get_contents("php://input"), true);
 
 // ------------------ SESSION CHECK ------------------
 if (!isset($input["session"])) {
-    echo json_encode([
-        "success" => false,
-        "items" => [],
-        "message" => "Session required"
-    ]);
+    echo json_encode(["success" => false, "items" => [], "message" => "Session required"]);
     exit;
 }
 
 $session = $input["session"];
 
-// ------------------ GET USER FROM SESSION ------------------
+// ------------------ FIND USER FROM SESSION ------------------
 try {
     $stmt = $pdo->prepare("SELECT user_id FROM sessions WHERE session = ?");
     $stmt->execute([$session]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$row) {
-        echo json_encode([
-            "success" => false,
-            "items" => [],
-            "message" => "Invalid session"
-        ]);
+        echo json_encode(["success" => false, "items" => [], "message" => "Invalid session"]);
         exit;
     }
 
     $user_id = (int)$row["user_id"];
+
 } catch (Exception $e) {
-    echo json_encode([
-        "success" => false,
-        "items" => [],
-        "message" => "Session lookup failed"
-    ]);
+    echo json_encode(["success" => false, "items" => [], "message" => "Session lookup failed"]);
     exit;
 }
 
