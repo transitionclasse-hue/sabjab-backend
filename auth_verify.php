@@ -1,23 +1,37 @@
 <?php
-error_reporting(E_ALL);
-ini_set("display_errors", 1);
-
 header("Content-Type: application/json");
 header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type");
-
-if ($_SERVER["REQUEST_METHOD"] === "OPTIONS") {
-    http_response_code(200);
-    exit;
-}
 
 require_once __DIR__ . "/db_config.php";
 
-// Test DB connection
-$stmt = $pdo->query("SELECT 1");
+$raw = file_get_contents("php://input");
+$input = json_decode($raw, true);
+
+$phone = $input["phone"] ?? null;
+
+if (!$phone) {
+    echo json_encode(["status" => "error", "message" => "Phone required"]);
+    exit;
+}
+
+// 1. Check if user exists
+$stmt = $pdo->prepare("SELECT * FROM users WHERE phone = :phone");
+$stmt->execute(["phone" => $phone]);
+$user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+// 2. If not, create user
+if (!$user) {
+    $stmt = $pdo->prepare("INSERT INTO users (phone) VALUES (:phone) RETURNING *");
+    $stmt->execute(["phone" => $phone]);
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
+}
+
+// 3. Start session
+session_start();
+$_SESSION["user_id"] = $user["id"];
 
 echo json_encode([
     "status" => "success",
-    "message" => "Connected to Supabase PostgreSQL successfully"
+    "user" => $user,
+    "session" => session_id()
 ]);
