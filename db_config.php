@@ -1,29 +1,19 @@
 <?php
-// ==========================================
-// db_config.php — Supabase PostgreSQL PDO
-// ==========================================
+error_reporting(0);
+ini_set("display_errors", 0);
 
-// ⚠️ PUT YOUR REAL VALUES HERE FROM SUPABASE SETTINGS
-
-$DB_HOST = "db.oywspaweispkmljnxgzo.supabase.co";
+$DB_HOST = "aws-1-ap-south-1.pooler.supabase.com";
 $DB_PORT = "5432";
 $DB_NAME = "postgres";
-$DB_USER = "postgres";
-$DB_PASS = "caso4.2h2ogypsum";
-
-// ==========================================
+$DB_USER = "postgres.oywspaweispkmljnxgzo";
+$DB_PASS = "hP3mMBGk72oOkaSf";
 
 try {
     $dsn = "pgsql:host=$DB_HOST;port=$DB_PORT;dbname=$DB_NAME;sslmode=require";
-
     $pdo = new PDO($dsn, $DB_USER, $DB_PASS, [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        PDO::ATTR_PERSISTENT => true,
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
     ]);
-
-} catch (Throwable $e) {
-    http_response_code(500);
+} catch (Exception $e) {
     echo json_encode([
         "status" => "error",
         "message" => "Database connection failed",
