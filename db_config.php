@@ -1,36 +1,33 @@
 <?php
-// ==================================================
-// db_config.php — SabJab9 (FIXED)
-// ==================================================
+// =====================================================
+// db_config.php — Supabase PostgreSQL (PDO, Safe, Pooled)
+// =====================================================
 
-mysqli_report(MYSQLI_REPORT_OFF);
+error_reporting(0);
+ini_set("display_errors", 0);
 
-$host = getenv('DB_HOST');
-$user = getenv('DB_USER');
-$pass = getenv('DB_PASS');
-$dbname = getenv('DB_NAME');
+header("Content-Type: application/json");
 
-// Fallback to Hostinger
-if (!$host) {
-    // REMOVED "p:" - This was the leak!
-    $host = "srv2124.hstgr.io"; 
-    $user = "u183862199_sj";
-    $pass = "YOUR_REAL_PASSWORD_HERE"; // Ensure this is correct
-    $dbname = "u183862199_sj";
-}
+// 🔐 PUT YOUR SUPABASE DETAILS HERE (from Connect popup)
+$DB_HOST = "db.oywspaweispkmljnxgzo.supabase.co";
+$DB_PORT = "5432";
+$DB_NAME = "postgres";
+$DB_USER = "postgres";
+$DB_PASS = "caso4.2h2ogypsum";
 
-// Create standard connection (No "p:")
-$conn = @mysqli_connect($host, $user, $pass, $dbname);
+// PDO DSN
+$dsn = "pgsql:host=$DB_HOST;port=$DB_PORT;dbname=$DB_NAME;sslmode=require";
 
-if (!$conn) {
-    header("Content-Type: application/json");
-    // This is the error you are seeing. 
-    // Once the p: connections clear (after 1 hour), this will stop.
+try {
+    $pdo = new PDO($dsn, $DB_USER, $DB_PASS, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::ATTR_PERSISTENT => false, // VERY IMPORTANT: avoid connection leaks
+    ]);
+} catch (Exception $e) {
     echo json_encode([
         "success" => false,
-        "message" => "DB connection failed: " . mysqli_connect_error()
+        "message" => "Database connection failed"
     ]);
     exit;
 }
-
-mysqli_set_charset($conn, "utf8mb4");
