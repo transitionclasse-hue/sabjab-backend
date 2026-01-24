@@ -9,73 +9,91 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
-require_once "db_config.php"; // Ensure the "p:" is removed from this file!
+require_once __DIR__ . "/db_config.php";
 
-mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
-
+// ------------------ READ INPUT ------------------
 $input = json_decode(file_get_contents("php://input"), true);
 
-// ---------- CLEAR FULL CART ----------
-if (isset($input["user_id"]) && !isset($input["product_id"])) {
-    $user_id = (int)$input["user_id"];
+// ------------------ SESSION CHECK ------------------
+if (!isset($input["session"])) {
+    echo json_encode(["success" => false, "message" => "Session required"]);
+    exit;
+}
 
-    if ($user_id <= 0) {
-        echo json_encode(["success" => false, "message" => "Invalid user"]);
-        mysqli_close($conn); // Close before exit
+$session = $input["session"];
+
+// ------------------ GET USER FROM SESSION ------------------
+try {
+    $stmt = $pdo->prepare("SELECT user_id FROM sessions WHERE session = ?");
+    $stmt->execute([$session]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$row) {
+        echo json_encode(["success" => false, "message" => "Invalid session"]);
         exit;
     }
 
-    $stmt = mysqli_prepare($conn, "DELETE FROM cart WHERE user_id = ?");
-    mysqli_stmt_bind_param($stmt, "i", $user_id);
-    mysqli_stmt_execute($stmt);
-    mysqli_stmt_close($stmt); // Free stmt
-
-    echo json_encode(["success" => true, "message" => "Cart cleared"]);
-    mysqli_close($conn); // Close before exit
+    $user_id = (int)$row["user_id"];
+} catch (Exception $e) {
+    echo json_encode(["success" => false, "message" => "Session lookup failed"]);
     exit;
 }
 
-// ---------- VALIDATE PARAMETERS ----------
-if (!isset($input["user_id"]) || !isset($input["product_id"]) || !isset($input["qty"])) {
+// ------------------ CLEAR FULL CART ------------------
+if (!isset($input["product_id"])) {
+    try {
+        $stmt = $pdo->prepare("DELETE FROM cart WHERE user_id = ?");
+        $stmt->execute([$user_id]);
+
+        echo json_encode(["success" => true, "message" => "Cart cleared"]);
+        exit;
+    } catch (Exception $e) {
+        echo json_encode(["success" => false, "message" => "Failed to clear cart"]);
+        exit;
+    }
+}
+
+// ------------------ VALIDATE PARAMETERS ------------------
+if (!isset($input["product_id"]) || !isset($input["qty"])) {
     echo json_encode(["success" => false, "message" => "Missing parameters"]);
-    mysqli_close($conn); 
     exit;
 }
 
-$user_id = (int)$input["user_id"];
 $product_id = (int)$input["product_id"];
 $qty = (int)$input["qty"];
 
-if ($user_id <= 0 || $product_id <= 0) {
-    echo json_encode(["success" => false, "message" => "Invalid user or product"]);
-    mysqli_close($conn);
+if ($product_id <= 0) {
+    echo json_encode(["success" => false, "message" => "Invalid product"]);
     exit;
 }
 
-// ---------- REMOVE ITEM ----------
+// ------------------ REMOVE ITEM ------------------
 if ($qty <= 0) {
-    $stmt = mysqli_prepare($conn, "DELETE FROM cart WHERE user_id = ? AND product_id = ?");
-    mysqli_stmt_bind_param($stmt, "ii", $user_id, $product_id);
-    mysqli_stmt_execute($stmt);
-    mysqli_stmt_close($stmt);
+    try {
+        $stmt = $pdo->prepare("DELETE FROM cart WHERE user_id = ? AND product_id = ?");
+        $stmt->execute([$user_id, $product_id]);
 
-    echo json_encode(["success" => true, "message" => "Item removed"]);
-    mysqli_close($conn);
-    exit;
+        echo json_encode(["success" => true, "message" => "Item removed"]);
+        exit;
+    } catch (Exception $e) {
+        echo json_encode(["success" => false, "message" => "Failed to remove item"]);
+        exit;
+    }
 }
 
-// ---------- INSERT OR UPDATE ----------
-$stmt = mysqli_prepare($conn, "
-    INSERT INTO cart (user_id, product_id, qty)
-    VALUES (?, ?, ?)
-    ON DUPLICATE KEY UPDATE qty = VALUES(qty)
-");
+// ------------------ INSERT OR UPDATE ------------------
+try {
+    $stmt = $pdo->prepare("
+        INSERT INTO cart (user_id, product_id, qty)
+        VALUES (?, ?, ?)
+        ON CONFLICT (user_id, product_id)
+        DO UPDATE SET qty = EXCLUDED.qty
+    ");
+    $stmt->execute([$user_id, $product_id, $qty]);
 
-mysqli_stmt_bind_param($stmt, "iii", $user_id, $product_id, $qty);
-mysqli_stmt_execute($stmt);
-mysqli_stmt_close($stmt);
-
-echo json_encode(["success" => true, "message" => "Cart updated"]);
-
-// FINAL CLOSE
-mysqli_close($conn);
+    echo json_encode(["success" => true, "message" => "Cart updated"]);
+    exit;
+} catch (Exception $e) {
+    echo json_encode(["success" => false, "message" => "Failed to update cart"]);
+    exit;
+}
