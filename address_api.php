@@ -1,122 +1,115 @@
 <?php
-header("Access-Control-Allow-Origin: *");
 header("Content-Type: application/json");
+header("Access-Control-Allow-Origin: *");
+header("Access-Control-Allow-Credentials: true");
 
-require_once "db_config.php";
+ini_set("session.cookie_samesite", "None");
+ini_set("session.cookie_secure", "1");
+session_start();
 
-$method = $_SERVER['REQUEST_METHOD'];
+require_once __DIR__ . "/db_config.php";
 
-// ----------------------------------------------------
-// 🔒 GET: Fetch addresses for logged-in user
-// ----------------------------------------------------
-if ($method === 'GET') {
-
-    if (!isset($_GET['user_id'])) {
-        echo json_encode(["status" => "error", "message" => "Missing user_id"]);
-        exit;
-    }
-
-    $user_id = intval($_GET['user_id']);
-
-    if ($user_id <= 0) {
-        echo json_encode(["status" => "error", "message" => "Invalid user_id"]);
-        exit;
-    }
-
-    $query = "SELECT * FROM addresses WHERE user_id = ? ORDER BY is_default DESC, id DESC";
-    $stmt = mysqli_prepare($conn, $query);
-    mysqli_stmt_bind_param($stmt, "i", $user_id);
-    mysqli_stmt_execute($stmt);
-    $result = mysqli_stmt_get_result($stmt);
-
-    $addresses = [];
-    while ($row = mysqli_fetch_assoc($result)) {
-        $addresses[] = $row;
-    }
-
-    echo json_encode([
-        "status" => "success",
-        "data" => $addresses
-    ]);
-
+// ---------------- SESSION CHECK ----------------
+if (!isset($_SESSION["user_id"])) {
+    echo json_encode(["status" => "error", "message" => "Not logged in"]);
     exit;
 }
 
-// ----------------------------------------------------
-// 🔒 POST: Save new address for logged-in user
-// ----------------------------------------------------
-if ($method === 'POST') {
+$user_id = (int) $_SESSION["user_id"];
 
-    $data = json_decode(file_get_contents("php://input"), true);
+$method = $_SERVER["REQUEST_METHOD"];
 
-    if (!$data || !isset($data['user_id'])) {
-        echo json_encode(["status" => "error", "message" => "Missing user_id"]);
+// ==================================================
+// GET → Fetch addresses
+// ==================================================
+if ($method === "GET") {
+    try {
+        $stmt = $pdo->prepare("SELECT * FROM addresses WHERE user_id = ? ORDER BY id DESC");
+        $stmt->execute([$user_id]);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        echo json_encode([
+            "status" => "success",
+            "data" => $rows
+        ]);
+        exit;
+
+    } catch (Exception $e) {
+        echo json_encode([
+            "status" => "error",
+            "message" => "Failed to load addresses",
+            "error" => $e->getMessage()
+        ]);
         exit;
     }
+}
 
-    $user_id = intval($data['user_id']);
+// ==================================================
+// POST → Save address
+// ==================================================
+if ($method === "POST") {
+    $input = json_decode(file_get_contents("php://input"), true);
 
-    if ($user_id <= 0) {
-        echo json_encode(["status" => "error", "message" => "Invalid user_id"]);
-        exit;
-    }
-
-    // Basic validation
     if (
-        empty($data['full_name']) ||
-        empty($data['pincode']) ||
-        empty($data['address_line_1'])
+        empty($input["name"]) ||
+        empty($input["phone"]) ||
+        empty($input["address_line"]) ||
+        empty($input["city"]) ||
+        empty($input["pincode"])
     ) {
-        echo json_encode(["status" => "error", "message" => "Missing required fields"]);
+        echo json_encode(["status" => "error", "message" => "Missing fields"]);
         exit;
     }
 
-    // If default address, clear previous default
-    if (!empty($data['is_default'])) {
-        $default_query = "UPDATE addresses SET is_default = 0 WHERE user_id = ?";
-        $default_stmt = mysqli_prepare($conn, $default_query);
-        mysqli_stmt_bind_param($default_stmt, "i", $user_id);
-        mysqli_stmt_execute($default_stmt);
+    $name = $input["name"];
+    $phone = $input["phone"];
+    $address_line = $input["address_line"];
+    $city = $input["city"];
+    $pincode = $input["pincode"];
+    $lat = $input["lat"] ?? null;
+    $lng = $input["lng"] ?? null;
+
+    try {
+        $stmt = $pdo->prepare("
+            INSERT INTO addresses 
+            (user_id, name, phone, address_line, city, pincode, lat, lng)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            RETURNING id
+        ");
+
+        $stmt->execute([
+            $user_id,
+            $name,
+            $phone,
+            $address_line,
+            $city,
+            $pincode,
+            $lat,
+            $lng
+        ]);
+
+        $newId = $stmt->fetchColumn();
+
+        echo json_encode([
+            "status" => "success",
+            "message" => "Address saved",
+            "id" => $newId
+        ]);
+        exit;
+
+    } catch (Exception $e) {
+        echo json_encode([
+            "status" => "error",
+            "message" => "Failed to save address",
+            "error" => $e->getMessage()
+        ]);
+        exit;
     }
-
-    $query = "
-        INSERT INTO addresses 
-        (user_id, full_name, phone_number, pincode, address_line_1, address_line_2, city, state, is_default) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ";
-
-    $stmt = mysqli_prepare($conn, $query);
-
-    mysqli_stmt_bind_param(
-        $stmt,
-        "isssssssi",
-        $user_id,
-        $data['full_name'],
-        $data['phone_number'],
-        $data['pincode'],
-        $data['address_line_1'],
-        $data['address_line_2'],
-        $data['city'],
-        $data['state'],
-        $data['is_default']
-    );
-
-    mysqli_stmt_execute($stmt);
-
-    echo json_encode([
-        "status" => "success",
-        "message" => "Address saved",
-        "id" => mysqli_insert_id($conn)
-    ]);
-
-    exit;
 }
 
-// ----------------------------------------------------
-// ❌ INVALID METHOD
-// ----------------------------------------------------
+// ==================================================
+// INVALID METHOD
+// ==================================================
 http_response_code(405);
 echo json_encode(["status" => "error", "message" => "Method not allowed"]);
-
-mysqli_close($conn);
-?>
+exit;
