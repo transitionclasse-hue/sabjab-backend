@@ -1,70 +1,62 @@
 <?php
-header("Access-Control-Allow-Origin: *");
 header("Content-Type: application/json");
+header("Access-Control-Allow-Origin: *");
+header("Access-Control-Allow-Credentials: true");
 
-require_once "db_config.php";
+ini_set("session.cookie_samesite", "None");
+ini_set("session.cookie_secure", "1");
+session_start();
 
-// ----------------------------------------------------
-// 🔒 STRICT SESSION BOUND VALIDATION
-// ----------------------------------------------------
-if (!isset($_GET['user_id'])) {
-    echo json_encode(["status" => "error", "message" => "Missing user_id"]);
+if (!isset($_SESSION["user_id"])) {
+    echo json_encode(["status" => "error", "message" => "Not logged in"]);
     exit;
 }
 
-$user_id = intval($_GET['user_id']);
+$user_id = (int) $_SESSION["user_id"];
 
-if ($user_id <= 0) {
-    echo json_encode(["status" => "error", "message" => "Invalid user ID"]);
+require_once __DIR__ . "/db_config.php";
+
+try {
+    // ---------------- LOAD ORDER HISTORY (ONLY THIS USER) ----------------
+    $stmt = $pdo->prepare("
+        SELECT 
+            o.id,
+            o.order_status,
+            o.order_total,
+            o.final_amount,
+            o.created_at,
+            (
+                SELECT p.image_url
+                FROM order_items oi
+                LEFT JOIN products p ON oi.product_id = p.id
+                WHERE oi.order_id = o.id
+                LIMIT 1
+            ) AS first_item_image
+        FROM orders o
+        WHERE o.user_id = ?
+        ORDER BY o.created_at DESC
+    ");
+
+    $stmt->execute([$user_id]);
+    $orders = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // ---------------- CAST NUMBERS ----------------
+    foreach ($orders as &$o) {
+        $o["order_total"] = (float) $o["order_total"];
+        $o["final_amount"] = (float) $o["final_amount"];
+    }
+
+    echo json_encode([
+        "status" => "success",
+        "data" => $orders
+    ]);
+    exit;
+
+} catch (Exception $e) {
+    echo json_encode([
+        "status" => "error",
+        "message" => "Failed to load order history",
+        "error" => $e->getMessage()
+    ]);
     exit;
 }
-
-// ----------------------------------------------------
-// Fetch all orders for THIS USER ONLY
-// ----------------------------------------------------
-$query = "
-    SELECT 
-        o.id, 
-        o.order_status, 
-        o.order_total,
-        o.final_amount,
-        o.created_at,
-
-        (
-            SELECT p.image_url 
-            FROM order_items oi
-            JOIN products p ON oi.product_id = p.id
-            WHERE oi.order_id = o.id
-            LIMIT 1
-        ) AS first_item_image
-        
-    FROM orders o
-    WHERE o.user_id = ?
-    ORDER BY o.created_at DESC
-";
-
-$stmt = mysqli_prepare($conn, $query);
-mysqli_stmt_bind_param($stmt, "i", $user_id);
-mysqli_stmt_execute($stmt);
-$result = mysqli_stmt_get_result($stmt);
-
-if (!$result) {
-    echo json_encode(["status" => "error", "message" => "Database error"]);
-    exit;
-}
-
-$orders = [];
-while ($row = mysqli_fetch_assoc($result)) {
-    // Cast numeric fields safely
-    $row['order_total'] = floatval($row['order_total']);
-    $row['final_amount'] = floatval($row['final_amount']);
-    $orders[] = $row;
-}
-
-echo json_encode([
-    "status" => "success",
-    "data" => $orders
-]);
-
-mysqli_close($conn);
-?>
