@@ -1,24 +1,20 @@
 <?php
-include "db_config.php";
-header("Content-Type: application/json; charset=UTF-8");
+header("Content-Type: application/json");
+header("Access-Control-Allow-Origin: *");
 
-$sql = "SELECT id, name, image_url, category_ids, display_order
-        FROM supercategories
-        WHERE is_active = 1
-        ORDER BY display_order ASC";
+require_once __DIR__ . "/db_config.php";
 
-$result = $conn->query($sql);
-$rows = [];
+try {
+    $stmt = $pdo->query("SELECT id, name, image FROM supercategories ORDER BY id ASC");
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-while ($row = $result->fetch_assoc()) {
-    $rows[] = [
-        "id" => (int)$row["id"],
-        "name" => $row["name"],
-        "image_url" => $row["image_url"],
-        "category_ids" => $row["category_ids"] ? explode(",", $row["category_ids"]) : [],
-        "display_order" => (int)$row["display_order"]
-    ];
+    echo json_encode([
+        "status" => "success",
+        "data" => $rows
+    ]);
+} catch (Exception $e) {
+    echo json_encode([
+        "status" => "error",
+        "message" => "Failed to load supercategories"
+    ]);
 }
-
-echo json_encode(["success"=>true,"data"=>$rows]);
-?>
