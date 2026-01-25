@@ -1,21 +1,29 @@
 <?php
 header("Content-Type: application/json");
-require_once "db_config.php";
+header("Access-Control-Allow-Origin: *");
 
-$sql = "SELECT id, name, image_url FROM categories WHERE is_active = 1 ORDER BY display_order ASC";
-$result = mysqli_query($conn, $sql);
+require_once __DIR__ . "/db_config.php";
 
-$categories = [];
+$supercategory_id = $_GET["supercategory_id"] ?? null;
 
-while ($row = mysqli_fetch_assoc($result)) {
-    $categories[] = [
-        "id" => (int)$row["id"],
-        "name" => $row["name"],
-        "image" => $row["image_url"]
-    ];
+if (!$supercategory_id) {
+    echo json_encode(["status" => "error", "message" => "supercategory_id required"]);
+    exit;
 }
 
-echo json_encode([
-    "success" => true,
-    "data" => $categories
-]);
+try {
+    $stmt = $pdo->prepare("SELECT id, name, image FROM categories WHERE supercategory_id = :sid ORDER BY id ASC");
+    $stmt->execute(["sid" => $supercategory_id]);
+
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    echo json_encode([
+        "status" => "success",
+        "data" => $rows
+    ]);
+} catch (Exception $e) {
+    echo json_encode([
+        "status" => "error",
+        "message" => "Failed to load categories"
+    ]);
+}
