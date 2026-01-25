@@ -1,7 +1,6 @@
 <?php
 header("Content-Type: application/json");
-header("Access-Control-Allow-Origin: https://snack.expo.dev");
-header("Access-Control-Allow-Credentials: true");
+header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: POST, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type");
 
@@ -10,40 +9,28 @@ if ($_SERVER["REQUEST_METHOD"] === "OPTIONS") {
     exit;
 }
 
-session_start();
-
 require_once __DIR__ . "/db_config.php";
-
-// ---------------- CHECK LOGIN ----------------
-if (!isset($_SESSION["user_id"])) {
-    echo json_encode([
-        "success" => false,
-        "message" => "Not logged in"
-    ]);
-    exit;
-}
-
-$user_id = (int) $_SESSION["user_id"];
 
 // ---------------- READ INPUT ----------------
 $input = json_decode(file_get_contents("php://input"), true);
 
 // ---------------- VALIDATE INPUT ----------------
-if (!isset($input["product_id"]) || !isset($input["qty"])) {
+if (!isset($input["user_id"]) || !isset($input["product_id"]) || !isset($input["qty"])) {
     echo json_encode([
         "success" => false,
-        "message" => "Missing product_id or qty"
+        "message" => "user_id, product_id and qty required"
     ]);
     exit;
 }
 
+$user_id = (int) $input["user_id"];
 $product_id = (int) $input["product_id"];
 $qty = (int) $input["qty"];
 
-if ($product_id <= 0) {
+if ($user_id <= 0 || $product_id <= 0) {
     echo json_encode([
         "success" => false,
-        "message" => "Invalid product"
+        "message" => "Invalid user or product"
     ]);
     exit;
 }
@@ -60,8 +47,7 @@ if ($qty <= 0) {
     exit;
 }
 
-// ---------------- INSERT OR UPDATE ----------------
-// PostgreSQL UPSERT
+// ---------------- INSERT OR UPDATE (POSTGRES UPSERT) ----------------
 $stmt = $pdo->prepare("
     INSERT INTO cart (user_id, product_id, qty)
     VALUES (?, ?, ?)
