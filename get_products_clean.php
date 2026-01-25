@@ -1,23 +1,30 @@
 <?php
 header("Content-Type: application/json");
-require_once "db_config.php";
+header("Access-Control-Allow-Origin: *");
 
-// Fetch only what app needs
-$sql = "SELECT id, name, price, image_url FROM products ORDER BY id DESC LIMIT 50";
-$result = mysqli_query($conn, $sql);
+require_once __DIR__ . "/db_config.php";
 
-$products = [];
+try {
+    $stmt = $pdo->query("
+        SELECT 
+            id, name, slug, price, sale_price, image, unit, weight,
+            stock_qty, is_in_stock, rating, rating_count, brand
+        FROM products
+        WHERE is_active = true
+        ORDER BY id DESC
+        LIMIT 100
+    ");
 
-while ($row = mysqli_fetch_assoc($result)) {
-    $products[] = [
-        "id" => (int)$row["id"],
-        "name" => $row["name"],
-        "price" => (float)$row["price"],
-        "image" => $row["image_url"]
-    ];
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    echo json_encode([
+        "status" => "success",
+        "data" => $rows
+    ]);
+} catch (Exception $e) {
+    echo json_encode([
+        "status" => "error",
+        "message" => "Failed to load products",
+        "details" => $e->getMessage()
+    ]);
 }
-
-echo json_encode([
-    "success" => true,
-    "data" => $products
-]);
