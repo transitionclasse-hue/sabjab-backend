@@ -1,24 +1,29 @@
 <?php
-include 'db_config.php';
+header("Content-Type: application/json");
+header("Access-Control-Allow-Origin: *");
 
-$category_id = $_GET['category_id'] ?? 0;
+require_once __DIR__ . "/db_config.php";
 
-$response = ["status" => false, "data" => []];
+$category_id = $_GET["category_id"] ?? null;
 
-if ($category_id == 0) {
-    echo json_encode($response);
+if (!$category_id) {
+    echo json_encode(["status" => "error", "message" => "category_id required"]);
     exit;
 }
 
-$sql = "SELECT id, name FROM subcategories WHERE category_id = $category_id ORDER BY id ASC";
-$res = mysqli_query($conn, $sql);
+try {
+    $stmt = $pdo->prepare("SELECT id, name, image FROM subcategories WHERE category_id = :cid ORDER BY id ASC");
+    $stmt->execute(["cid" => $category_id]);
 
-$data = [];
-while ($row = mysqli_fetch_assoc($res)) {
-    $data[] = $row;
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    echo json_encode([
+        "status" => "success",
+        "data" => $rows
+    ]);
+} catch (Exception $e) {
+    echo json_encode([
+        "status" => "error",
+        "message" => "Failed to load subcategories"
+    ]);
 }
-
-$response["status"] = true;
-$response["data"] = $data;
-echo json_encode($response);
-?>
