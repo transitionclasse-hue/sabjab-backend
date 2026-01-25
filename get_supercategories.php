@@ -5,7 +5,7 @@ header("Access-Control-Allow-Origin: *");
 require_once __DIR__ . "/db_config.php";
 
 try {
-    $stmt = $pdo->query("SELECT * FROM supercategories LIMIT 10");
+    $stmt = $pdo->query("SELECT id, name, image FROM supercategories ORDER BY id ASC");
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     echo json_encode([
@@ -15,7 +15,6 @@ try {
 } catch (Exception $e) {
     echo json_encode([
         "status" => "error",
-        "message" => "SQL ERROR",
-        "details" => $e->getMessage()
+        "message" => "Failed to load supercategories"
     ]);
 }
