@@ -1,34 +1,40 @@
 <?php
 header("Content-Type: application/json");
-header("Access-Control-Allow-Origin: https://snack.expo.dev");
-header("Access-Control-Allow-Credentials: true");
-
-session_start();
+header("Access-Control-Allow-Origin: *");
 
 require_once __DIR__ . "/db_config.php";
 
-// ---------------- CHECK LOGIN ----------------
-if (!isset($_SESSION["user_id"])) {
+// ---------------- VALIDATE INPUT ----------------
+if (!isset($_GET["user_id"])) {
     echo json_encode([
         "success" => false,
         "items" => [],
-        "message" => "Not logged in"
+        "message" => "user_id required"
     ]);
     exit;
 }
 
-$user_id = (int) $_SESSION["user_id"];
+$user_id = (int) $_GET["user_id"];
+
+if ($user_id <= 0) {
+    echo json_encode([
+        "success" => false,
+        "items" => [],
+        "message" => "Invalid user_id"
+    ]);
+    exit;
+}
 
 // ---------------- LOAD CART ----------------
 try {
     $sql = "
         SELECT
-            c.id AS cart_id,
+            c.id,
             c.product_id,
             c.qty,
             p.name,
             p.price,
-            p.image AS image
+            p.image
         FROM cart c
         JOIN products p ON p.id = c.product_id
         WHERE c.user_id = ?
@@ -49,7 +55,8 @@ try {
     echo json_encode([
         "success" => false,
         "items" => [],
-        "message" => "Failed to load cart"
+        "message" => "Failed to load cart",
+        "error" => $e->getMessage()
     ]);
     exit;
 }
