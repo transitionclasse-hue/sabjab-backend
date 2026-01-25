@@ -1,52 +1,40 @@
 <?php
-// Set headers for CORS and JSON response
-header("Access-Control-Allow-Origin: *");
 header("Content-Type: application/json");
+header("Access-Control-Allow-Origin: *");
 
-include 'db_config.php';
+require_once __DIR__ . "/db_config.php";
 
-// Get the subcategory ID, ensuring it's an integer
-$sub_id = isset($_GET['subcategory_id']) ? intval($_GET['subcategory_id']) : 0;
+$subcategory_id = $_GET["subcategory_id"] ?? null;
 
-if ($sub_id <= 0) {
-    // Handle missing ID gracefully
-    echo json_encode(["data" => []]);
+if (!$subcategory_id) {
+    echo json_encode([
+        "status" => "error",
+        "message" => "subcategory_id required"
+    ]);
     exit;
 }
 
-// SQL query filtering by the correct column (subcategory_id)
-$sql = "SELECT id, name, image_url, price, regular_price, sale_price, stock_status
+try {
+    $stmt = $pdo->prepare("
+        SELECT 
+            id, name, slug, price, sale_price, image, unit, weight,
+            stock_qty, is_in_stock, rating, rating_count, brand
         FROM products
-        WHERE subcategory_id = $sub_id";
+        WHERE subcategory_id = :sid AND is_active = true
+        ORDER BY id DESC
+    ");
 
-$res = mysqli_query($conn, $sql);
+    $stmt->execute(["sid" => $subcategory_id]);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-if (!$res) {
-    // Error handling
-    echo json_encode(["status" => "error", "message" => mysqli_error($conn)]);
-    exit;
+    echo json_encode([
+        "status" => "success",
+        "data" => $rows
+    ]);
+} catch (Exception $e) {
+    echo json_encode([
+        "status" => "error",
+        "message" => "Failed to load products",
+        "details" => $e->getMessage()
+    ]);
 }
-
-$products = [];
-while ($row = mysqli_fetch_assoc($res)) { 
-    // Convert price and stock fields to correct types for consistency
-    $row['price'] = floatval($row['price']);
-    $row['regular_price'] = floatval($row['regular_price']);
-    $row['sale_price'] = floatval($row['sale_price']);
-    
-    // The frontend SubCategoryScreen.js expects a key named 'image' for its left pane 
-    // and 'image_url' for the right product list.
-    $row['image'] = $row['image_url']; 
-
-    $products[] = $row;
-}
-
-// CRITICAL FIX: Wrap the data in the "data" key as expected by the frontend
-echo json_encode([
-    "status" => "success", 
-    "count" => count($products), 
-    "data" => $products
-]);
-
-mysqli_close($conn);
-?>
