@@ -1,120 +1,143 @@
 <?php
-header("Access-Control-Allow-Origin: *");
+header("Content-Type: application/json");
+header("Access-Control-Allow-Origin: https://snack.expo.dev");
+header("Access-Control-Allow-Credentials: true");
 header("Access-Control-Allow-Methods: POST, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type");
-header("Content-Type: application/json");
 
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+if ($_SERVER["REQUEST_METHOD"] === "OPTIONS") {
     http_response_code(200);
     exit;
 }
 
-require_once "db_config.php";
+session_start();
 
-mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+require_once __DIR__ . "/db_config.php";
 
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    http_response_code(405);
-    echo json_encode(["status" => "error", "message" => "Method not allowed"]);
-    mysqli_close($conn); // Close before exit
+// ---------------- CHECK LOGIN ----------------
+if (!isset($_SESSION["user_id"])) {
+    echo json_encode([
+        "status" => "error",
+        "message" => "Not logged in"
+    ]);
     exit;
 }
 
+$user_id = (int) $_SESSION["user_id"];
+
+// ---------------- READ INPUT ----------------
 $data = json_decode(file_get_contents("php://input"), true);
 
 if (!$data) {
-    echo json_encode(["status" => "error", "message" => "Invalid JSON input"]);
-    mysqli_close($conn);
+    echo json_encode([
+        "status" => "error",
+        "message" => "Invalid JSON input"
+    ]);
     exit;
 }
 
-if (!isset($data['user_id'])) {
-    echo json_encode(["status" => "error", "message" => "User not logged in"]);
-    mysqli_close($conn);
-    exit;
-}
-
-$user_id = (int)$data['user_id'];
-
-if ($user_id <= 0) {
-    echo json_encode(["status" => "error", "message" => "Invalid user"]);
-    mysqli_close($conn);
-    exit;
-}
-
+// ---------------- VALIDATE INPUT ----------------
 if (
-    !isset($data['address_id']) ||
-    !isset($data['final_amount']) ||
-    empty($data['payment_method']) ||
-    empty($data['cart_items'])
+    !isset($data["address_id"]) ||
+    !isset($data["final_amount"]) ||
+    empty($data["payment_method"]) ||
+    empty($data["cart_items"])
 ) {
-    echo json_encode(["status" => "error", "message" => "Missing order details"]);
-    mysqli_close($conn);
+    echo json_encode([
+        "status" => "error",
+        "message" => "Missing order details"
+    ]);
     exit;
 }
 
-$address_id = (int)$data['address_id'];
-$order_total = (float)$data['order_total'];
-$discount_amount = (float)$data['discount_amount'];
-$final_amount = (float)$data['final_amount'];
-$payment_method = (string)$data['payment_method'];
+$address_id = (int) $data["address_id"];
+$order_total = (float) ($data["order_total"] ?? 0);
+$discount_amount = (float) ($data["discount_amount"] ?? 0);
+$delivery_fee = (float) ($data["delivery_fee"] ?? 0);
+$final_amount = (float) $data["final_amount"];
+$payment_method = (string) $data["payment_method"];
 
-// --- TRANSACTION START ---
-mysqli_begin_transaction($conn);
+$customer_name = trim($data["customer_name"] ?? "");
+$customer_phone = trim($data["customer_phone"] ?? "");
 
+// ---------------- START TRANSACTION ----------------
 try {
-    // 1. Insert order
-    $stmt = mysqli_prepare($conn, "
+    $pdo->beginTransaction();
+
+    // 1️⃣ Insert order
+    $stmt = $pdo->prepare("
         INSERT INTO orders 
-        (user_id, address_id, order_total, discount_amount, final_amount, payment_method, order_status) 
-        VALUES (?, ?, ?, ?, ?, ?, 'Processing')
-    ");
-    mysqli_stmt_bind_param($stmt, "iiddds", $user_id, $address_id, $order_total, $discount_amount, $final_amount, $payment_method);
-    mysqli_stmt_execute($stmt);
-    $order_id = mysqli_insert_id($conn);
-    mysqli_stmt_close($stmt);
-
-    // 2. Insert order items
-    $stmt_item = mysqli_prepare($conn, "
-        INSERT INTO order_items 
-        (order_id, product_id, product_name, price_at_purchase, qty) 
-        VALUES (?, ?, ?, ?, ?)
+        (user_id, address_id, order_total, discount_amount, delivery_fee, final_amount, payment_method, order_status, customer_name, customer_phone) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'Processing', ?, ?)
+        RETURNING id
     ");
 
-    foreach ($data['cart_items'] as $item) {
-        $product_id = (int)$item['id'];
-        $product_name = (string)$item['name'];
-        $price_at_purchase = (float)$item['price'];
-        $qty = (int)$item['qty'];
+    $stmt->execute([
+        $user_id,
+        $address_id,
+        $order_total,
+        $discount_amount,
+        $delivery_fee,
+        $final_amount,
+        $payment_method,
+        $customer_name,
+        $customer_phone
+    ]);
 
-        mysqli_stmt_bind_param($stmt_item, "iisdi", $order_id, $product_id, $product_name, $price_at_purchase, $qty);
-        mysqli_stmt_execute($stmt_item);
+    $order_id = $stmt->fetchColumn();
+
+    if (!$order_id) {
+        throw new Exception("Failed to create order");
     }
-    mysqli_stmt_close($stmt_item);
 
-    // 3. Clear Cart
-    $stmt_clear = mysqli_prepare($conn, "DELETE FROM cart WHERE user_id = ?");
-    mysqli_stmt_bind_param($stmt_clear, "i", $user_id);
-    mysqli_stmt_execute($stmt_clear);
-    mysqli_stmt_close($stmt_clear);
+    // 2️⃣ Insert order items
+    $stmtItem = $pdo->prepare("
+        INSERT INTO order_items 
+        (order_id, product_id, price_at_purchase, qty) 
+        VALUES (?, ?, ?, ?)
+    ");
 
-    // SUCCESS - COMMIT
-    mysqli_commit($conn);
+    foreach ($data["cart_items"] as $item) {
+        $product_id = (int) $item["product_id"];
+        $price = (float) $item["price"];
+        $qty = (int) $item["qty"];
+
+        if ($product_id <= 0 || $qty <= 0) {
+            throw new Exception("Invalid cart item");
+        }
+
+        $stmtItem->execute([
+            $order_id,
+            $product_id,
+            $price,
+            $qty
+        ]);
+    }
+
+    // 3️⃣ Clear cart
+    $stmtClear = $pdo->prepare("DELETE FROM cart WHERE user_id = ?");
+    $stmtClear->execute([$user_id]);
+
+    // ✅ COMMIT
+    $pdo->commit();
 
     echo json_encode([
         "status" => "success",
         "message" => "Order placed successfully",
         "order_id" => $order_id
     ]);
+    exit;
 
-} catch (Throwable $e) {
-    // FAILURE - ROLLBACK
-    mysqli_rollback($conn);
+} catch (Exception $e) {
+    // ❌ ROLLBACK
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
+
     echo json_encode([
         "status" => "error",
-        "message" => $e->getMessage()
+        "message" => "Checkout failed",
+        "error" => $e->getMessage()
     ]);
+    exit;
 }
-
-// ALWAYS CLOSE AT THE END
-mysqli_close($conn);
