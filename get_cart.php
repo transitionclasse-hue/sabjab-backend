@@ -1,55 +1,23 @@
 <?php
 header("Content-Type: application/json");
-header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type");
+header("Access-Control-Allow-Origin: https://snack.expo.dev");
+header("Access-Control-Allow-Credentials: true");
 
-if ($_SERVER["REQUEST_METHOD"] === "OPTIONS") {
-    http_response_code(200);
-    exit;
-}
+session_start();
 
 require_once __DIR__ . "/db_config.php";
 
-// ---------------- READ INPUT ----------------
-$input = json_decode(file_get_contents("php://input"), true);
-
-if (!isset($input["session"])) {
+// ---------------- CHECK LOGIN ----------------
+if (!isset($_SESSION["user_id"])) {
     echo json_encode([
         "success" => false,
         "items" => [],
-        "message" => "Session required"
+        "message" => "Not logged in"
     ]);
     exit;
 }
 
-$session = $input["session"];
-
-// ---------------- FIND USER FROM SESSION ----------------
-try {
-    $stmt = $pdo->prepare("SELECT user_id FROM sessions WHERE session = ?");
-    $stmt->execute([$session]);
-    $row = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    if (!$row) {
-        echo json_encode([
-            "success" => false,
-            "items" => [],
-            "message" => "Invalid session"
-        ]);
-        exit;
-    }
-
-    $user_id = (int)$row["user_id"];
-} catch (Exception $e) {
-    echo json_encode([
-        "success" => false,
-        "items" => [],
-        "message" => "Session lookup failed",
-        "error" => $e->getMessage()
-    ]);
-    exit;
-}
+$user_id = (int) $_SESSION["user_id"];
 
 // ---------------- LOAD CART ----------------
 try {
@@ -69,7 +37,6 @@ try {
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute([$user_id]);
-
     $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     echo json_encode([
@@ -82,8 +49,7 @@ try {
     echo json_encode([
         "success" => false,
         "items" => [],
-        "message" => "Failed to load cart",
-        "error" => $e->getMessage()
+        "message" => "Failed to load cart"
     ]);
     exit;
 }
